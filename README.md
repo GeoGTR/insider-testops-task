@@ -357,6 +357,70 @@ Uses `selenium/standalone-chrome:124.0` providing:
 - No external ingress
 - Pod-to-pod communication within namespace
 
+## GitHub Actions CI/CD
+
+This project includes automated workflows for continuous integration and deployment.
+
+### Build and Push Workflow
+
+Automatically builds and pushes Docker images to Docker Hub on every commit to main or develop branches.
+
+**Triggered on:**
+- Push to main/develop branches
+- Pull requests to main
+
+**Actions:**
+- Builds Test Controller and Chrome Node images for linux/amd64 platform
+- Pushes to Docker Hub registry (geogtr/insider-test-controller, geogtr/insider-chrome-node)
+- Automatic tagging: branch name, commit SHA, and latest
+
+### Run Tests Workflow
+
+Manual workflow for executing tests on AWS EKS cluster directly from GitHub Actions.
+
+**Manual Trigger:** Actions tab > Run Tests on Kubernetes > Run workflow
+
+**Parameters:**
+- **node_count**: Number of Chrome nodes (1-5)
+- **namespace**: Kubernetes namespace (default: insider)
+- **cleanup**: Cleanup resources after tests (true/false)
+
+**Prerequisites:**
+GitHub repository secrets must be configured:
+- `AWS_ROLE_ARN`: IAM role ARN for OIDC authentication
+- `DOCKER_PASSWORD`: Docker Hub access token
+
+**Workflow Steps:**
+1. Sets up Python, kubectl, and Helm
+2. Authenticates to AWS using OIDC
+3. Configures kubectl for EKS cluster
+4. Executes deployment script with selected parameters
+5. Captures test results and generates summary
+6. Displays results in GitHub Actions summary with:
+   - Configuration details
+   - Test pass/fail counts
+   - Execution duration
+   - Pod status
+   - Full test output (collapsible)
+
+**Example Summary Output:**
+```
+Test Execution Summary
+Configuration:
+- Chrome Nodes: 1
+- Namespace: insider
+- Cleanup: true
+
+Results:
+- Passed: 5
+- Failed: 0
+- Duration: 98.26s
+
+✅ All tests passed!
+```
+
+This workflow enables team members to run tests on-demand without local environment setup or AWS access.
+
 ## Troubleshooting
 
 ### Common Issues
@@ -418,6 +482,18 @@ kubectl top pods -n insider
 - Single Chrome node: Sequential execution
 - Multiple Chrome nodes: Load-balanced execution
 
+
+## Deployment Demo
+
+Watch the complete deployment process from AWS EKS setup to test execution:
+
+[![asciicast](https://asciinema.org/a/2eUANzCSqA4qOnmIA6klF7SeV.svg)](https://asciinema.org/a/2eUANzCSqA4qOnmIA6klF7SeV)
+
+This terminal recording demonstrates:
+- EKS cluster verification
+- Helm chart deployment with Python script
+- Test execution and results
+- Pod status monitoring
 
 ## Conclusion
 This project is created for Insider TestOps technical assessment.

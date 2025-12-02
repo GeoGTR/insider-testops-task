@@ -54,7 +54,6 @@ coverage.xml
 # Test reports
 report.html
 assets/
-screenshots/*.png
 
 # Logs
 *.log
