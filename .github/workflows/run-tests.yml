@@ -1,0 +1,163 @@
+name: Run Tests on Kubernetes
+
+on:
+  workflow_dispatch:
+    inputs:
+      node_count:
+        description: 'Number of Chrome nodes (1-5)'
+        required: true
+        default: '1'
+        type: choice
+        options:
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '5'
+      namespace:
+        description: 'Kubernetes namespace'
+        required: true
+        default: 'insider'
+        type: string
+      cleanup:
+        description: 'Cleanup resources after tests'
+        required: true
+        default: true
+        type: boolean
+
+jobs:
+  run-tests:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install kubernetes
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'latest'
+
+      - name: Configure kubectl
+        env:
+          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG }}
+        run: |
+          mkdir -p $HOME/.kube
+          echo "$KUBECONFIG_DATA" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+          kubectl config current-context
+
+      - name: Verify cluster access
+        run: |
+          kubectl cluster-info
+          kubectl get nodes
+
+      - name: Deploy and run tests
+        id: deploy-tests
+        run: |
+          set -o pipefail
+          
+          # Create output file for logs
+          OUTPUT_FILE="test-output.log"
+          
+          # Run deployment script and capture output
+          python3 scripts/deploy_and_run.py \
+            --node-count ${{ inputs.node_count }} \
+            --namespace ${{ inputs.namespace }} \
+            --helm-chart-path ./helm/insider-tests \
+            --values-file ./helm/insider-tests/values-aws.yaml \
+            ${{ inputs.cleanup && '--cleanup' || '' }} \
+            2>&1 | tee "$OUTPUT_FILE"
+          
+          # Capture exit code
+          EXIT_CODE=${PIPEFAIL[0]}
+          
+          # Extract test results summary
+          if grep -q "passed" "$OUTPUT_FILE"; then
+            PASSED=$(grep -oP '\d+(?= passed)' "$OUTPUT_FILE" | tail -1)
+            FAILED=$(grep -oP '\d+(?= failed)' "$OUTPUT_FILE" | tail -1 || echo "0")
+            DURATION=$(grep -oP '\d+\.\d+s' "$OUTPUT_FILE" | tail -1 || echo "N/A")
+            
+            echo "test_passed=$PASSED" >> $GITHUB_OUTPUT
+            echo "test_failed=$FAILED" >> $GITHUB_OUTPUT
+            echo "test_duration=$DURATION" >> $GITHUB_OUTPUT
+          else
+            echo "test_passed=0" >> $GITHUB_OUTPUT
+            echo "test_failed=0" >> $GITHUB_OUTPUT
+            echo "test_duration=N/A" >> $GITHUB_OUTPUT
+          fi
+          
+          # Save full output
+          echo "log_content<<EOF" >> $GITHUB_OUTPUT
+          cat "$OUTPUT_FILE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          exit $EXIT_CODE
+
+      - name: Get pod status
+        if: always()
+        run: |
+          echo "### Pod Status" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          kubectl get pods -n ${{ inputs.namespace }} >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Generate test summary
+        if: always()
+        run: |
+          echo "## Test Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Configuration:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Chrome Nodes: ${{ inputs.node_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Namespace: ${{ inputs.namespace }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Cleanup: ${{ inputs.cleanup }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.deploy-tests.outputs.test_passed }}" != "0" ] || [ "${{ steps.deploy-tests.outputs.test_failed }}" != "0" ]; then
+            echo "**Results:**" >> $GITHUB_STEP_SUMMARY
+            echo "- Passed: ${{ steps.deploy-tests.outputs.test_passed }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Failed: ${{ steps.deploy-tests.outputs.test_failed }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Duration: ${{ steps.deploy-tests.outputs.test_duration }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            if [ "${{ steps.deploy-tests.outputs.test_failed }}" = "0" ]; then
+              echo "✅ All tests passed!" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ Some tests failed" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "⚠️ Unable to extract test results" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### Full Test Output" >> $GITHUB_STEP_SUMMARY
+          echo '<details>' >> $GITHUB_STEP_SUMMARY
+          echo '<summary>Click to expand</summary>' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.deploy-tests.outputs.log_content }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo '</details>' >> $GITHUB_STEP_SUMMARY
+
+      - name: Cleanup on failure
+        if: failure() && !inputs.cleanup
+        run: |
+          echo "Cleaning up failed deployment..."
+          helm uninstall insider-tests --namespace ${{ inputs.namespace }} || true
