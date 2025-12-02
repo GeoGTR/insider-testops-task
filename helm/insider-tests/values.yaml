@@ -1,0 +1,97 @@
+# Default values for insider-tests Helm chart
+
+# Chrome Node Configuration
+chromeNode:
+  # Number of Chrome node replicas (min: 1, max: 5)
+  nodeCount: 1
+
+  image:
+    repository: insider-chrome-node
+    tag: latest
+    pullPolicy: Never  # Local image, never pull from registry
+
+  service:
+    name: chrome-node-service
+    port: 4444
+    targetPort: 4444
+    type: ClusterIP
+
+  # Selenium Grid Configuration (SINGLE SOURCE OF TRUTH)
+  selenium:
+    maxSessions: 3          # Maximum concurrent sessions per node
+    sessionTimeout: 300     # Session timeout in seconds (5 minutes)
+    startXvfb: true        # Start virtual display
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+  # Health check configuration
+  healthCheck:
+    livenessProbe:
+      initialDelaySeconds: 45  # Increased from 30
+      periodSeconds: 10
+      timeoutSeconds: 10
+      failureThreshold: 5      # Increased from 3
+    readinessProbe:
+      initialDelaySeconds: 15
+      periodSeconds: 5
+      timeoutSeconds: 5
+      successThreshold: 1
+
+  # Selenium Grid Hub URL (for standalone mode, leave empty)
+  seleniumHub: ""
+
+# Test Controller Configuration
+testController:
+  image:
+    repository: insider-test-controller
+    tag: latest
+    pullPolicy: Never  # Use local image for kind/minikube
+
+  # Job configuration
+  job:
+    backoffLimit: 0  # Don't retry failed jobs
+    restartPolicy: Never
+    ttlSecondsAfterFinished: 300  # Cleanup job after 5 minutes (300 seconds)
+
+  env:
+    chromeServiceUrl: "http://chrome-node-service:4444/wd/hub"
+    runningInContainer: "true"
+    appBaseUrl: "https://useinsider.com"  # Application base URL for tests
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+  # Wait for Chrome nodes before starting
+  initContainer:
+    enabled: true
+    image: busybox:1.28
+
+# Security Context
+securityContext:
+  # Pod-level security context
+  pod:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  
+  # Container-level security context
+  container:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+    readOnlyRootFilesystem: false  # Chrome and test runner need /tmp write access
+    runAsNonRoot: true

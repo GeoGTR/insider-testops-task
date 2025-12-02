@@ -1,0 +1,39 @@
+# Test Controller Dockerfile for Insider TestOps Task
+# This image runs pytest tests in a containerized environment
+
+FROM python:3.9-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies if needed
+RUN apt-get update && apt-get install -y \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for better layer caching
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy test files
+COPY tests/ ./tests/
+COPY pytest.ini .
+
+# Create non-root user and fix permissions for security context
+RUN useradd -m -u 1000 testuser && \
+    chown -R testuser:testuser /app
+
+# Set environment variable for container indicator
+ENV RUNNING_IN_CONTAINER=true
+
+# Switch to non-root user
+USER testuser
+
+# Expose port for potential HTTP report server
+# (Not used in current implementation, but good practice for future extensions)
+EXPOSE 8080
+
+# Default command: run all tests with verbose output
+CMD ["pytest", "-v", "--tb=short", "--color=yes"]

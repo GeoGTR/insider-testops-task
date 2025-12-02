@@ -1,0 +1,19 @@
+# Chrome Node Dockerfile for Insider TestOps Task
+# This image provides Selenium Chrome browser for remote test execution
+
+FROM seleniarm/standalone-chromium:latest
+
+# Expose Selenium WebDriver port
+EXPOSE 4444
+
+# Set environment variables for Selenium configuration
+ENV SE_NODE_MAX_SESSIONS=1 \
+    SE_NODE_SESSION_TIMEOUT=300 \
+    SE_START_XVFB=true
+
+# Add healthcheck
+HEALTHCHECK --interval=15s --timeout=30s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:4444/wd/hub/status || exit 1
+
+# Default CMD from base image starts Selenium
+# No need to override - base image handles it

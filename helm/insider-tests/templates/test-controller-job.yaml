@@ -1,0 +1,45 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "insider-tests.fullname" . }}-test-controller-{{ .Release.Revision }}
+  labels:
+    {{- include "insider-tests.testControllerLabels" . | nindent 4 }}
+spec:
+  backoffLimit: {{ .Values.testController.job.backoffLimit }}
+  {{- if .Values.testController.job.ttlSecondsAfterFinished }}
+  ttlSecondsAfterFinished: {{ .Values.testController.job.ttlSecondsAfterFinished }}
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "insider-tests.testControllerLabels" . | nindent 8 }}
+    spec:
+      {{- if .Values.securityContext }}
+      securityContext:
+        {{- toYaml .Values.securityContext.pod | nindent 8 }}
+      {{- end }}
+      {{- if .Values.testController.initContainer.enabled }}
+      initContainers:
+      - name: wait-for-chrome
+        image: {{ .Values.testController.initContainer.image }}
+        command: ['sh', '-c', 'until nc -z {{ .Values.chromeNode.service.name }} {{ .Values.chromeNode.service.port }}; do echo waiting for {{ .Values.chromeNode.service.name }}; sleep 2; done;']
+      {{- end }}
+      containers:
+      - name: test-runner
+        image: {{ .Values.testController.image.repository }}:{{ .Values.testController.image.tag }}
+        imagePullPolicy: {{ .Values.testController.image.pullPolicy }}
+        {{- if .Values.securityContext }}
+        securityContext:
+          {{- toYaml .Values.securityContext.container | nindent 10 }}
+        {{- end }}
+        envFrom:
+        - configMapRef:
+            name: {{ include "insider-tests.fullname" . }}-config
+        resources:
+          requests:
+            memory: {{ .Values.testController.resources.requests.memory }}
+            cpu: {{ .Values.testController.resources.requests.cpu }}
+          limits:
+            memory: {{ .Values.testController.resources.limits.memory }}
+            cpu: {{ .Values.testController.resources.limits.cpu }}
+      restartPolicy: {{ .Values.testController.job.restartPolicy }}

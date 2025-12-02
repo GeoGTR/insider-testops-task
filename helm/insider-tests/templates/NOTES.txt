@@ -1,0 +1,64 @@
+Thank you for installing {{ .Chart.Name }}!
+
+Your release is named {{ .Release.Name }}.
+
+────────────────────────────────────────────────────────────────────────────
+
+📊 Deployment Summary:
+  • Chart Version: {{ .Chart.Version }}
+  • App Version: {{ .Chart.AppVersion }}
+  • Namespace: {{ .Release.Namespace }}
+  • Chrome Nodes: {{ .Values.chromeNode.nodeCount }}
+
+────────────────────────────────────────────────────────────────────────────
+
+🔍 To check the status of your deployment:
+
+  kubectl get all -n {{ .Release.Namespace }}
+
+────────────────────────────────────────────────────────────────────────────
+
+📝 To view test execution logs:
+
+  kubectl logs job/{{ include "insider-tests.fullname" . }}-test-controller-{{ .Release.Revision }} -n {{ .Release.Namespace }}
+
+  # Or follow logs in real-time:
+  kubectl logs -f job/{{ include "insider-tests.fullname" . }}-test-controller-{{ .Release.Revision }} -n {{ .Release.Namespace }}
+
+────────────────────────────────────────────────────────────────────────────
+
+🌐 To check Chrome node status:
+
+  kubectl get pods -l app.kubernetes.io/component=chrome-node -n {{ .Release.Namespace }}
+
+  # To get Chrome node service URL:
+  kubectl get svc {{ .Values.chromeNode.service.name }} -n {{ .Release.Namespace }}
+
+────────────────────────────────────────────────────────────────────────────
+
+🧪 Test Results:
+
+  The test controller job will automatically run tests against the Chrome nodes.
+  Wait for the job to complete and check the logs above for test results.
+
+  Expected output: "5 passed" for all Insider test cases.
+
+────────────────────────────────────────────────────────────────────────────
+
+🧹 Cleanup:
+
+  {{- if .Values.testController.job.ttlSecondsAfterFinished }}
+  • Job will auto-cleanup after {{ .Values.testController.job.ttlSecondsAfterFinished }} seconds
+  {{- end }}
+  
+  To uninstall this release:
+  
+  helm uninstall {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+────────────────────────────────────────────────────────────────────────────
+
+📚 For more information:
+  • Helm Chart: https://github.com/<your-repo>/insider-testops-task
+  • Documentation: README.md in the repository
+
+Happy Testing! 🚀

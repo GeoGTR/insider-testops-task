@@ -1,0 +1,51 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv
+
+# Pytest cache
+.pytest_cache/
+.tox/
+htmlcov/
+.coverage
+.coverage.*
+.cache
+*.cover
+.hypothesis/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git/
+.gitignore
+
+# Screenshots and reports
+screenshots/
+report.html
+assets/
+
+# Documentation
+README.md
+
+# Kubernetes and scripts
+k8s/
+scripts/
+
+# Docker files
+docker/
+Dockerfile
+.dockerignore

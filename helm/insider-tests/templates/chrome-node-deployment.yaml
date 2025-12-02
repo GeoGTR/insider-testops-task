@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "insider-tests.fullname" . }}-chrome-node
+  labels:
+    {{- include "insider-tests.chromeNodeLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.chromeNode.nodeCount }}
+  selector:
+    matchLabels:
+      {{- include "insider-tests.chromeNodeSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "insider-tests.chromeNodeLabels" . | nindent 8 }}
+    spec:
+      {{- if .Values.securityContext }}
+      securityContext:
+        {{- toYaml .Values.securityContext.pod | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: chrome
+        image: {{ .Values.chromeNode.image.repository }}:{{ .Values.chromeNode.image.tag }}
+        imagePullPolicy: {{ .Values.chromeNode.image.pullPolicy }}
+        {{- if .Values.securityContext }}
+        securityContext:
+          {{- toYaml .Values.securityContext.container | nindent 10 }}
+        {{- end }}
+        ports:
+        - containerPort: {{ .Values.chromeNode.service.targetPort }}
+        env:
+        # Use values from values.yaml (SINGLE SOURCE OF TRUTH)
+        - name: SE_NODE_MAX_SESSIONS
+          value: {{ .Values.chromeNode.selenium.maxSessions | quote }}
+        - name: SE_NODE_SESSION_TIMEOUT
+          value: {{ .Values.chromeNode.selenium.sessionTimeout | quote }}
+        - name: SE_START_XVFB
+          value: {{ .Values.chromeNode.selenium.startXvfb | quote }}
+        resources:
+          requests:
+            memory: {{ .Values.chromeNode.resources.requests.memory }}
+            cpu: {{ .Values.chromeNode.resources.requests.cpu }}
+          limits:
+            memory: {{ .Values.chromeNode.resources.limits.memory }}
+            cpu: {{ .Values.chromeNode.resources.limits.cpu }}
+        livenessProbe:
+          httpGet:
+            path: /wd/hub/status
+            port: {{ .Values.chromeNode.service.targetPort }}
+          initialDelaySeconds: {{ .Values.chromeNode.healthCheck.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.chromeNode.healthCheck.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.chromeNode.healthCheck.livenessProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.chromeNode.healthCheck.livenessProbe.failureThreshold }}
+        readinessProbe:
+          httpGet:
+            path: /wd/hub/status
+            port: {{ .Values.chromeNode.service.targetPort }}
+          initialDelaySeconds: {{ .Values.chromeNode.healthCheck.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.chromeNode.healthCheck.readinessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.chromeNode.healthCheck.readinessProbe.timeoutSeconds }}
+          successThreshold: {{ .Values.chromeNode.healthCheck.readinessProbe.successThreshold }}
