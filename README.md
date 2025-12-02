@@ -85,6 +85,8 @@ insider-testops-task/
 │       ├── test-controller-job.yaml
 │       ├── configmap.yaml
 │       └── NOTES.txt
+├── screenshots/                    # Deployment screenshots
+│   └── README.md
 ├── scripts/
 │   └── deploy_and_run.py           # Automated deployment script
 ├── Dockerfile.test-controller      # Test runner container
