@@ -55,13 +55,15 @@ jobs:
         with:
           version: 'latest'
 
-      - name: Configure kubectl
-        env:
-          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Configure kubectl for EKS
         run: |
-          mkdir -p $HOME/.kube
-          echo "$KUBECONFIG_DATA" | base64 -d > $HOME/.kube/config
-          chmod 600 $HOME/.kube/config
+          aws eks update-kubeconfig --name insider-testops --region us-east-1
           kubectl config current-context
 
       - name: Verify cluster access
